@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+
 import {
   LayoutDashboard,
   Package,
@@ -10,6 +11,9 @@ import {
   Mic,
   Bell,
   RefreshCw,
+  AlertTriangle,
+  Percent,
+  Eye,
 } from "lucide-react";
 
 import VoiceAssistant from "./components/VoiceAssistant";
@@ -55,7 +59,10 @@ function App() {
       style: "currency",
       currency: "INR",
       maximumFractionDigits: 0,
-    }).format(value);
+    }).format(value ?? 0);
+
+  const formatNumber = (value) =>
+    new Intl.NumberFormat("en-IN").format(value ?? 0);
 
   if (loading) {
     return (
@@ -69,34 +76,86 @@ function App() {
   if (error) {
     return (
       <div className="loading-screen">
+        <AlertTriangle size={28} />
         <p>{error}</p>
         <button onClick={fetchAnalytics}>Try Again</button>
       </div>
     );
   }
 
+  // Determine whether a change is good or bad.
+  const getChangeStatus = (value, inverse = false) => {
+    if (value === null || value === undefined || value === 0) {
+      return "neutral";
+    }
+
+    const positive = value > 0;
+
+    if (inverse) {
+      return positive ? "negative" : "positive";
+    }
+
+    return positive ? "positive" : "negative";
+  };
+
   const metricCards = [
     {
       title: "Total Revenue",
       value: formatCurrency(analytics.revenue.current),
-      change: analytics.revenue.changePercentage,
+      comparison: `${Math.abs(analytics.revenue.changePercentage)}% ${
+        analytics.revenue.changePercentage < 0 ? "decrease" : "increase"
+      } vs last month`,
+      status: getChangeStatus(analytics.revenue.changePercentage),
       icon: IndianRupee,
-      type: "currency",
     },
     {
       title: "Total Orders",
-      value: analytics.orders.current,
-      change: analytics.orders.changePercentage,
+      value: formatNumber(analytics.orders.current),
+      comparison: `${Math.abs(analytics.orders.changePercentage)}% ${
+        analytics.orders.changePercentage < 0 ? "decrease" : "increase"
+      } vs last month`,
+      status: getChangeStatus(analytics.orders.changePercentage),
       icon: ShoppingBag,
+    },
+    {
+      title: "Cancellation Rate",
+      value: `${analytics.cancellationRate.current}%`,
+      comparison: `${analytics.cancellationRate.current - analytics.cancellationRate.previous > 0 ? "+" : ""}${(
+        analytics.cancellationRate.current - analytics.cancellationRate.previous
+      ).toFixed(1)} percentage points vs last month`,
+      status: getChangeStatus(
+        analytics.cancellationRate.current -
+          analytics.cancellationRate.previous,
+        true,
+      ),
+      icon: RotateCcw,
+    },
+    {
+      title: "Average Selling Price",
+      value: formatCurrency(analytics.averageSellingPrice.current),
+      comparison: `${analytics.averageSellingPrice.changePercentage ?? 0}% vs last month`,
+      status: getChangeStatus(analytics.averageSellingPrice.changePercentage),
+      icon: IndianRupee,
+    },
+    {
+      title: "Out-of-Stock Products",
+      value: formatNumber(analytics.outOfStockProducts.current),
+      comparison: `+${analytics.outOfStockProducts.change} vs last month`,
+      status: getChangeStatus(analytics.outOfStockProducts.change, true),
+      icon: AlertTriangle,
     },
     {
       title: "Conversion Rate",
       value: `${analytics.conversionRate}%`,
+      comparison: "Current month",
+      status: "neutral",
       icon: TrendingUp,
     },
     {
       title: "Return Rate",
       value: `${analytics.returnRate}%`,
+      comparison: "Current month",
+      status: "neutral",
       icon: RotateCcw,
     },
   ];
@@ -133,6 +192,7 @@ function App() {
 
         <div className="sidebar-bottom">
           <div className="seller-avatar">FW</div>
+
           <div>
             <strong>{analytics.sellerName}</strong>
             <small>{SELLER_ID}</small>
@@ -142,10 +202,12 @@ function App() {
 
       {/* Main Content */}
       <main className="main-content">
+        {/* Header */}
         <header className="topbar">
           <div>
             <p className="breadcrumb">Workspace / Dashboard</p>
             <h1>Business Overview</h1>
+
             <p className="page-subtitle">
               Monitor your store performance and grow your business.
             </p>
@@ -168,11 +230,13 @@ function App() {
           </div>
         </header>
 
-        {/* Seller Info */}
+        {/* Seller Information */}
         <section className="seller-banner">
           <div>
             <span className="seller-tag">SELLER ACCOUNT</span>
+
             <h2>{analytics.sellerName}</h2>
+
             <p>
               {analytics.category} · {SELLER_ID}
             </p>
@@ -184,12 +248,12 @@ function App() {
           </div>
         </section>
 
-        {/* Metrics */}
+        {/* Performance Metrics */}
         <section className="section">
           <div className="section-heading">
             <div>
               <h2>Performance Metrics</h2>
-              <p>Your current business performance</p>
+              <p>Current business performance compared with last month.</p>
             </div>
           </div>
 
@@ -201,6 +265,7 @@ function App() {
                 <div className="metric-card" key={metric.title}>
                   <div className="metric-top">
                     <span>{metric.title}</span>
+
                     <div className="metric-icon">
                       <Icon size={19} />
                     </div>
@@ -208,28 +273,27 @@ function App() {
 
                   <h3>{metric.value}</h3>
 
-                  {metric.change !== undefined && (
-                    <div className="metric-change negative">
+                  <div className={`metric-change ${metric.status}`}>
+                    {metric.status === "negative" ? (
                       <TrendingDown size={15} />
-                      {Math.abs(metric.change)}% vs previous month
-                    </div>
-                  )}
+                    ) : metric.status === "positive" ? (
+                      <TrendingUp size={15} />
+                    ) : null}
 
-                  {metric.change === undefined && (
-                    <p className="metric-description">Current month</p>
-                  )}
+                    <span>{metric.comparison}</span>
+                  </div>
                 </div>
               );
             })}
           </div>
         </section>
 
-        {/* Products */}
+        {/* Product Performance */}
         <section className="section">
           <div className="section-heading">
             <div>
               <h2>Product Performance</h2>
-              <p>Understand how your products are performing.</p>
+              <p>Explore product visibility, orders, inventory and returns.</p>
             </div>
           </div>
 
@@ -238,12 +302,14 @@ function App() {
               <thead>
                 <tr>
                   <th>Product</th>
+                  <th>Category</th>
                   <th>Price</th>
                   <th>Views</th>
                   <th>Orders</th>
                   <th>Stock</th>
                   <th>Returns</th>
                   <th>Return Rate</th>
+                  <th>Rating</th>
                 </tr>
               </thead>
 
@@ -262,19 +328,30 @@ function App() {
                         </div>
                       </td>
 
+                      <td>{product.category || "N/A"}</td>
+
                       <td>{formatCurrency(product.price)}</td>
-                      <td>{product.views.toLocaleString("en-IN")}</td>
-                      <td>{product.orders}</td>
+
+                      <td>{formatNumber(product.views)}</td>
+
+                      <td>{formatNumber(product.orders)}</td>
+
                       <td>
                         <span
                           className={
-                            product.stock <= 10 ? "stock-low" : "stock-good"
+                            product.stock === 0
+                              ? "return-high"
+                              : product.stock <= 10
+                                ? "stock-low"
+                                : "stock-good"
                           }
                         >
-                          {product.stock}
+                          {product.stock === 0 ? "Out of stock" : product.stock}
                         </span>
                       </td>
+
                       <td>{product.returns}</td>
+
                       <td>
                         <span
                           className={
@@ -284,6 +361,8 @@ function App() {
                           {returnRate.toFixed(1)}%
                         </span>
                       </td>
+
+                      <td>{product.rating ? `★ ${product.rating}` : "N/A"}</td>
                     </tr>
                   );
                 })}
@@ -292,13 +371,15 @@ function App() {
           </div>
         </section>
 
-        {/* Voice Assistant */}
+        {/* AI Voice Assistant */}
         <section className="section assistant-section">
           <div className="section-heading">
             <div>
               <h2>Your AI Business Advisor</h2>
+
               <p>Talk to your personal Virtual Key Account Manager.</p>
             </div>
+
             <span className="ai-badge">AI POWERED</span>
           </div>
 
@@ -311,8 +392,8 @@ function App() {
               <h3>SellerPulse AI Assistant</h3>
 
               <p>
-                Ask questions about sales, product performance, inventory and
-                business growth.
+                Ask questions about sales, cancellations, inventory, product
+                visibility and business growth.
               </p>
             </div>
 
